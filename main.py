@@ -1,12 +1,14 @@
 import os 
 import argparse
 
+import numpy as np
 import cv2
 
 argparser = argparse.ArgumentParser()
 argparser.add_argument('--img_dir', type=str, default='.')
 argparser.add_argument('--filename', type=str, default='image.jpg')
 argparser.add_argument('--img_scale', type=float, default=1.0)
+argparser.add_argument('--mode', type=str, default='intensity', help='intensity | edge')
 args = argparser.parse_args()
 
 img_dir = args.img_dir
@@ -20,7 +22,8 @@ if not os.path.exists(save_dir):
 
 def get_contrast_metric(edge, p1, p2,
                         save_graph=False,
-                        save_graph_fn='contrast.png'):
+                        save_graph_fn='contrast.png',
+                        args=None):
     x1, y1 = p1
     x2, y2 = p2
     # print('p1:', p1)
@@ -34,7 +37,7 @@ def get_contrast_metric(edge, p1, p2,
         dx = 1
     m = dy / dx
     b = y1 - m * x1
-    print('m:', m, 'b:', b)
+    # print('m:', m, 'b:', b)
 
     # get the contrast metric
     cvalues = []
@@ -52,17 +55,25 @@ def get_contrast_metric(edge, p1, p2,
         plt.savefig(
             os.path.join(save_dir,
                          save_graph_fn,))
-    print('max contrast:', max(cvalues))
-    return max(cvalues)
+        
+    if args.mode == 'edge':
+        print('max contrast:', max(cvalues))
+        return max(cvalues)
+    elif args.mode == 'intensity':
+        cvalues = np.array(cvalues)
+        print('cvalues shape:', cvalues.shape)
+        print('max contrast:', np.max(cvalues, axis=0))
+        return np.max(cvalues, axis=0)
 
 # mouse callback function
 points = []
 contrasts = []
 cnt = -1
 def draw_circle(event,x,y,flags,param):
-    global points, edge_img, edge, contrasts, cnt, samples
+    global points, edge_img, edge, contrasts, cnt, samples 
+    global args
     if event == cv2.EVENT_LBUTTONDOWN:
-        print('clicked at', x, y)
+        # print('clicked at', x, y)
         if len(points) < 2:
             points.append((x,y))
 
@@ -93,7 +104,8 @@ def draw_circle(event,x,y,flags,param):
                                     points[0], 
                                     points[1],
                                     save_graph=True,
-                                    save_graph_fn=f'contrast_{cnt}.png')
+                                    save_graph_fn=f'contrast_{cnt}.png',
+                                    args=args)
             contrasts.append(c)
             print('Contrasts:', contrasts)
 
@@ -110,16 +122,32 @@ cv2.imwrite(os.path.join(save_dir, 'input.png'),
             img)
 samples = img.copy()
 
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-blur = cv2.GaussianBlur(gray, (5, 5), 0)
-edge = cv2.Laplacian(blur, cv2.CV_64F)
-edge_cp = edge.copy()
-edge_img = cv2.cvtColor(edge_cp.astype('uint8'), 
-                        cv2.COLOR_GRAY2BGR)
+if args.mode == 'edge':
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    edge = cv2.Laplacian(blur, cv2.CV_64F)
+    save_dir = os.path.join('edge', save_dir)
+
+    edge_cp = edge.copy()
+    edge_img = cv2.cvtColor(edge_cp.astype('uint8'), 
+                            cv2.COLOR_GRAY2BGR)
+elif args.mode == 'intensity':
+    edge = img.copy()
+    save_dir = os.path.join('intensity', save_dir)
+
+    edge_cp = edge.copy()
+    edge_img = edge_cp.copy()
+
+if not os.path.exists(save_dir):
+    os.makedirs(save_dir)
 
 # draw pixel histogram of edge 
 import matplotlib.pyplot as plt
-n, bins, patches = plt.hist(edge.ravel(), 20, [0, 20])
+
+if args.mode == 'intensity':
+    n, bins, patches = plt.hist(edge.ravel(), 255, [0, 255])
+elif args.mode == 'edge':
+    n, bins, patches = plt.hist(edge.ravel(), 20, [0, 20])
 # for i in range(len(patches)):
 #     plt.text(bins[i], n[i], str(int(n[i])), fontsize=8, ha='center')
 # plt.show()
