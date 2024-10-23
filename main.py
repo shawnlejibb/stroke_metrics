@@ -8,7 +8,7 @@ argparser = argparse.ArgumentParser()
 argparser.add_argument('--img_dir', type=str, default='.')
 argparser.add_argument('--filename', type=str, default='image.jpg')
 argparser.add_argument('--img_scale', type=float, default=1.0)
-argparser.add_argument('--mode', type=str, default='intensity', help='intensity | edge')
+argparser.add_argument('--mode', type=str, default='intensity', help='intensity | edge | laplace_var')
 args = argparser.parse_args()
 
 img_dir = args.img_dir
@@ -64,6 +64,14 @@ def get_contrast_metric(edge, p1, p2,
         print('cvalues shape:', cvalues.shape)
         print('max contrast:', np.max(cvalues, axis=0))
         return np.max(cvalues, axis=0)
+    elif args.mode == 'laplace_var':
+        y0 = min(int(points[0][1]),int(points[1][1]))
+        y1 = max(int(points[0][1]),int(points[1][1]))
+        x0 = min(int(points[0][0]),int(points[1][0]))
+        x1 = max(int(points[0][0]),int(points[1][0]))
+        cvalues = np.array([edge[y0:y1, x0:x1].var()])
+        print('cvalues shape:', cvalues.shape)
+        return cvalues
 
 # mouse callback function
 points = []
@@ -82,7 +90,14 @@ def draw_circle(event,x,y,flags,param):
 
         if len(points) == 2:            
             cnt += 1
-            cv2.line(edge_img, points[0], points[1], (0, 255, 0), 2)
+
+            if args.mode == 'edge' or args.mode == 'intensity':
+                cv2.line(edge_img, points[0], points[1], (0, 255, 0), 2)
+                cv2.line(samples, points[0], points[1], (0, 255, 0), 2)
+            elif args.mode == 'laplace_var':
+                cv2.rectangle(edge_img, points[0], points[1], (0, 255, 0), 2)
+                cv2.rectangle(samples, points[0], points[1], (0, 255, 0), 2)
+
             cv2.putText(edge_img, 
                         str(cnt), 
                         points[0], 
@@ -90,8 +105,6 @@ def draw_circle(event,x,y,flags,param):
                         1, 
                         (0, 255, 0), 
                         2)
-            
-            cv2.line(samples, points[0], points[1], (0, 255, 0), 2)
             cv2.putText(samples, 
                         str(cnt), 
                         points[0], 
@@ -122,21 +135,20 @@ cv2.imwrite(os.path.join(save_dir, 'input.png'),
             img)
 samples = img.copy()
 
-if args.mode == 'edge':
+if args.mode == 'edge' or args.mode == 'laplace_var':
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (5, 5), 0)
-    edge = cv2.Laplacian(blur, cv2.CV_64F)
-    save_dir = os.path.join('edge', save_dir)
+    edge = cv2.Laplacian(blur, cv2.CV_64F)    
 
     edge_cp = edge.copy()
     edge_img = cv2.cvtColor(edge_cp.astype('uint8'), 
                             cv2.COLOR_GRAY2BGR)
 elif args.mode == 'intensity':
     edge = img.copy()
-    save_dir = os.path.join('intensity', save_dir)
 
     edge_cp = edge.copy()
     edge_img = edge_cp.copy()
+save_dir = os.path.join(args.mode, save_dir)
 
 if not os.path.exists(save_dir):
     os.makedirs(save_dir)
@@ -144,7 +156,7 @@ if not os.path.exists(save_dir):
 # draw pixel histogram of edge 
 import matplotlib.pyplot as plt
 
-if args.mode == 'intensity':
+if args.mode == 'intensity' or args.mode == 'laplace_var':
     n, bins, patches = plt.hist(edge.ravel(), 255, [0, 255])
 elif args.mode == 'edge':
     n, bins, patches = plt.hist(edge.ravel(), 20, [0, 20])
