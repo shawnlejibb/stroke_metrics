@@ -52,6 +52,13 @@ if response.status_code == 200:
                 image, text, (tl[0], tl[1] - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
             )
+            cv2.putText(image, 
+                    "{:0.1f}".format(contr),
+                    tl,
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0, 255, 0),
+                    2)
         else:
             print(f"Error box: {bbox}")
 
